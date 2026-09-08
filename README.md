@@ -42,8 +42,8 @@ inlined into it at build time from a shared module, so there is one
 implementation rather than a copy that drifts.
 
 ```bash
-npm run build:sig   # regenerate index.html
-npm run check:sig   # 31 checks
+npm run build:sig   # regenerate index.html from src/
+npm run check:sig   # 38 checks
 ```
 
 `check:sig` executes the page's own script against a DOM stand-in and asserts real
@@ -51,13 +51,33 @@ behaviour — typing updates the preview, optional rows appear and disappear, th
 phone label matches between the HTML and plain-text output, input is escaped, and
 the copy buttons fall back cleanly where the clipboard API is unavailable.
 
-It also enforces that this stays a general-purpose tool: no real person's name, no
-client branding, and `@email.com` as the only example domain.
+Static analysis would not catch the bug that prompted all of this: the code was
+correct, compiled, and produced the wrong output. Only running it finds that.
+
+It also enforces `@email.com` as the only example address. A deployment that builds
+signatures for a named organisation alongside this tool can add an optional
+`check.config.json` — `{ "offRosterNames": [...], "clientTerms": [...] }` — and those
+names will fail the build if they ever reach the page. That file is git-ignored:
+committing it would publish the very names it exists to keep out.
+
+## Verify it yourself
+
+```bash
+git diff --stat index.html
+```
+
+Prints nothing. The published page is byte-identical to what the build produces from
+source.
 
 ## Contents
 
-Just the built page and the five icons. No personal data of any kind.
+`index.html` (built) · `src/` · `scripts/` · five icons. No personal data of any kind.
+
+## Also
+
+[**Latent Fault 001 — the README was lying**](./LATENT-FAULT-001.md). Four faults this
+project shipped with, one still live, and the single pattern underneath all of them.
 
 ---
 
-MIT. Use it for whatever.
+[MIT](./LICENSE). Use it for whatever.

@@ -1,0 +1,27 @@
+{
+  "name": "burn-a-sig",
+  "version": "1.0.0",
+  "description": "A one-page email signature builder. Fill in the fields, copy, paste into Outlook. Runs entirely in the browser.",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "homepage": "https://futur3gh0st.github.io/burn-a-sig",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/futur3gh0st/burn-a-sig.git"
+  },
+  "scripts": {
+    "build:sig": "node scripts/build-burn-a-sig.mjs",
+    "check:sig": "node scripts/check-burn-a-sig.mjs",
+    "check:live": "node scripts/check-burn-a-sig.mjs /dev/stdin"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "email-signature",
+    "outlook",
+    "html-email",
+    "static-site"
+  ]
+}

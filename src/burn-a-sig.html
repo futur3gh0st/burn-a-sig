@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Burn A Sig — email signature builder</title>
+<meta name="description" content="Build an email signature in the browser. Fill in the fields, copy, paste into Outlook. No sign-up, nothing uploaded." />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%94%A5</text></svg>" />
+<style>
+  :root{
+    --green:#3f4a1f; --green2:#4c5a26; --gold:#e0a12e; --line:#e6e1d4;
+    --ink:#2f2f2b; --muted:#6f6f66; --bg:#faf9f5; --card:#ffffff;
+    --field:#ffffff; --border:#cfcabb; --chip:#f2f1ea; --danger:#8c2f1d;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --green:#2b331480; --green2:#a8bd6a; --gold:#e0a12e; --line:#33332e;
+      --ink:#e8e6de; --muted:#9b9a90; --bg:#171714; --card:#1f1f1b;
+      --field:#26261f; --border:#45443c; --chip:#2b2b24; --danger:#e8907c;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;}
+  header{background:#3f4a1f;color:#fff;padding:20px 28px;}
+  .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px;font-weight:800;}
+  header .sub{font-size:13px;opacity:.82;}
+  header p{margin:7px 0 0;opacity:.88;font-size:13.5px;max-width:70ch;}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 70px;}
+  .grid{display:grid;grid-template-columns:minmax(300px,390px) 1fr;gap:24px;align-items:start;}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px;}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:1.4px;color:var(--green2);
+     margin:0 0 16px;font-weight:700;}
+  label{display:block;margin:0 0 14px;font-size:13px;font-weight:600;}
+  .hint{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px;}
+  .opt{font-weight:400;color:var(--muted);}
+  input[type=text],input[type=email],input[type=url],select{
+    width:100%;margin-top:6px;padding:10px 11px;font:14px inherit;color:var(--ink);
+    border:1px solid var(--border);border-radius:6px;background:var(--field);min-height:44px;}
+  input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible,
+  textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+  input[aria-invalid="true"]{border-color:var(--danger);}
+  .err{display:block;color:var(--danger);font-size:12px;font-weight:600;margin-top:4px;}
+  .swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;margin:0 0 6px;}
+  .swatches label{margin:0;font-size:11px;font-weight:600;color:var(--muted);text-align:center;}
+  .swatches input[type=color]{display:block;width:100%;height:34px;margin-top:4px;padding:2px;
+    border:1px solid var(--border);border-radius:6px;background:var(--field);cursor:pointer;min-height:34px;}
+  .row{display:grid;grid-template-columns:1fr 130px;gap:10px;align-items:end;}
+  @media (max-width:420px){.row{grid-template-columns:1fr}}
+  .btn{display:inline-block;background:var(--green2);color:#fff;border:0;border-radius:6px;
+       padding:12px 18px;font:600 14px inherit;cursor:pointer;min-height:44px;}
+  .btn:hover{background:#3f4a1f}
+  .btn.sec{background:transparent;color:var(--green2);border:1.5px solid var(--green2);}
+  .btn.sec:hover{background:var(--chip)}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0 0;}
+  /* The signature is pasted into email, which renders on white. The preview
+     stage therefore stays white in dark mode too — showing it on a dark card
+     would misrepresent what the recipient sees. */
+  .stage{background:#fff;border:1px dashed var(--border);border-radius:8px;padding:30px;
+         overflow-x:auto;color:#2f2f2b;}
+  .status{font-size:13px;font-weight:600;color:var(--green2);}
+  textarea{width:100%;min-height:170px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+           padding:12px;border:1px solid var(--border);border-radius:6px;
+           background:var(--field);color:var(--ink);}
+  details{border-top:1px solid var(--line);padding:14px 0 0;margin-top:18px}
+  summary{cursor:pointer;font-weight:700;color:var(--green2);font-size:14px;min-height:44px;
+          display:flex;align-items:center;}
+  ol,ul{padding-left:22px} li{margin:7px 0}
+  code{background:var(--chip);padding:1px 5px;border-radius:3px;font-size:12.5px;}
+  .note{background:var(--chip);border-left:4px solid var(--gold);padding:12px 14px;
+        border-radius:0 6px 6px 0;font-size:13.5px;margin:16px 0;}
+  footer{max-width:1180px;margin:0 auto;padding:0 20px 40px;color:var(--muted);font-size:12.5px;}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>🔥 Burn A Sig</h1>
+    <span class="sub">email signature builder</span>
+  </div>
+  <p>Fill in the fields, copy, paste into Outlook. Nothing to install, no sign-up,
+     and nothing you type ever leaves this page.</p>
+</header>
+
+<div class="wrap">
+<div class="grid">
+
+  <!-- ============ FORM ============ -->
+  <form class="card" id="form" autocomplete="off" novalidate>
+    <h2>Organisation</h2>
+
+    <label for="f-company">Organisation name <span class="opt">(optional)</span>
+      <span class="hint">Shown after the job title, e.g. "Primary Counselor | Your organisation"</span>
+      <input type="text" id="f-company" placeholder="Your organisation" />
+    </label>
+
+    <label for="f-website">Website <span class="opt">(optional)</span>
+      <span class="hint">Leave blank to omit the row</span>
+      <input type="url" id="f-website" placeholder="https://www.email.com" />
+      <span class="err" id="e-website" hidden>A website must start with http:// or https:// to link correctly in email.</span>
+    </label>
+
+    <label for="f-logo">Logo image URL <span class="opt">(optional)</span>
+      <span class="hint">Must be a public HTTPS link to a PNG or JPG — email clients
+        cannot show an image from your computer. Blank means no logo.</span>
+      <input type="url" id="f-logo" placeholder="https://email.com/logo.png" />
+      <span class="err" id="e-logo" hidden>A logo must be a public https:// image URL.</span>
+    </label>
+
+    <h2 style="margin-top:26px">Appearance</h2>
+
+    <label for="f-preset">Colour theme
+      <span class="hint">Pick one, then adjust any swatch below</span>
+      <select id="f-preset">
+        <option value="olive">Olive &amp; gold</option>
+        <option value="slate">Slate</option>
+        <option value="navy">Navy</option>
+        <option value="plum">Plum</option>
+        <option value="mono">Mono</option>
+      </select>
+    </label>
+
+    <div class="swatches">
+      <label for="c-name">Name<input type="color" id="c-name" /></label>
+      <label for="c-title">Title<input type="color" id="c-title" /></label>
+      <label for="c-text">Text<input type="color" id="c-text" /></label>
+      <label for="c-link">Links<input type="color" id="c-link" /></label>
+      <label for="c-accent">Accent<input type="color" id="c-accent" /></label>
+      <label for="c-divider">Divider<input type="color" id="c-divider" /></label>
+    </div>
+
+    <label for="f-iconstyle" style="margin-top:14px">Contact icons
+      <span class="hint">Emoji need no hosting and never break. Images are sharper,
+        but only show once the reader allows pictures.</span>
+      <select id="f-iconstyle">
+        <option value="image">Gold images</option>
+        <option value="emoji">Emoji 📱 ☎️ 🌐</option>
+        <option value="none">No icons</option>
+      </select>
+    </label>
+
+    <h2 style="margin-top:26px">Their details</h2>
+
+    <label for="f-name">Full name
+      <span class="hint">Include credentials exactly as they use them, e.g. "Melody Lee, MA, LMFT"</span>
+      <input type="text" id="f-name" value="Melody Lee" required />
+      <span class="err" id="e-name" hidden>A name is required — it is the one line every signature needs.</span>
+    </label>
+
+    <label for="f-title">Job title <span class="opt">(optional)</span>
+      <span class="hint">Leave blank to hide this line entirely</span>
+      <input type="text" id="f-title" value="Primary Counselor" />
+    </label>
+
+    <label for="f-email">Email address
+      <span class="hint">The address this person actually sends from</span>
+      <input type="email" id="f-email" value="mlee@email.com" inputmode="email" />
+      <span class="err" id="e-email" hidden>That does not look like an email address — check for a typo or a stray space.</span>
+    </label>
+
+    <div class="row">
+      <label for="f-direct" style="margin:0">Personal phone <span class="opt">(optional)</span>
+        <span class="hint">Leave blank if they only use the office line</span>
+        <input type="text" id="f-direct" placeholder="(555) 555-0134" inputmode="tel" />
+      </label>
+      <label for="f-label" style="margin:0">Label
+        <select id="f-label">
+          <option value="MOBILE" selected>MOBILE</option>
+          <option value="DIRECT">DIRECT</option>
+          <option value="CELL">CELL</option>
+        </select>
+      </label>
+    </div>
+    <span class="err" id="e-direct" hidden>Not a 10-digit US number — it will show as plain text with no tap-to-call link.</span>
+
+    <label for="f-office" style="margin-top:14px">Office number <span class="opt">(optional)</span>
+      <span class="hint">The main switchboard or desk line. Leave blank to omit the row.</span>
+      <input type="text" id="f-office" placeholder="(555) 555-0100" inputmode="tel" />
+      <span class="err" id="e-office" hidden>Not a 10-digit US number — it will show as plain text with no tap-to-call link.</span>
+    </label>
+
+    <label for="f-fax">Fax number <span class="opt">(optional)</span>
+      <span class="hint">Leave blank to omit the row — most signatures no longer carry one.</span>
+      <input type="text" id="f-fax" placeholder="(555) 555-0199" inputmode="tel" />
+    </label>
+
+    <label for="f-booking">Booking link <span class="opt">(optional)</span>
+      <span class="hint">A Calendly, Microsoft Bookings or similar link. Leave blank for none.</span>
+      <input type="url" id="f-booking" placeholder="https://calendly.com/melody-lee" />
+      <span class="err" id="e-booking" hidden>A booking link must start with https:// to work in email.</span>
+    </label>
+
+    <label for="f-bookinglabel">Booking link wording
+      <span class="hint">Only used when a booking link is filled in above</span>
+      <input type="text" id="f-bookinglabel" value="BOOK A MEETING" />
+    </label>
+
+    <div class="btns">
+      <button type="button" class="btn sec" id="btn-reset">Clear the form</button>
+    </div>
+
+  </form>
+
+  <!-- ============ OUTPUT ============ -->
+  <div>
+    <div class="card">
+      <h2>Preview</h2>
+      <div class="stage"><div id="sigPreview"></div></div>
+      <div class="btns">
+        <button type="button" class="btn" id="btn-copy">Copy signature for Outlook</button>
+        <button type="button" class="btn sec" id="btn-dl-html">Download .html</button>
+        <span class="status" id="status-copy" role="status" aria-live="polite"></span>
+      </div>
+      <p style="margin:12px 0 0;font-size:13px;color:var(--muted)">
+        Paste it straight into the signature editor. Keep the formatting — do not
+        "paste as plain text".
+      </p>
+    </div>
+
+    <div class="card" style="margin-top:22px">
+      <h2>Phone version (Outlook on iPhone / Android)</h2>
+      <p style="margin:0 0 12px;font-size:13.5px;color:var(--muted)">
+        The Outlook phone app only accepts plain text. This version has no logo or
+        icons. That is expected, not a mistake.
+      </p>
+      <textarea id="plainOut" readonly aria-label="Plain text signature for mobile"></textarea>
+      <div class="btns">
+        <button type="button" class="btn sec" id="btn-copy-plain">Copy phone version</button>
+        <button type="button" class="btn sec" id="btn-dl-txt">Download .txt</button>
+        <span class="status" id="status-plain" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <!-- ============ INSTRUCTIONS ============ -->
+    <div class="card" style="margin-top:22px">
+      <h2>Instructions</h2>
+
+      <details open>
+        <summary>New Outlook &amp; Outlook on the web</summary>
+        <ol>
+          <li>Fill in the boxes on the left and check the preview.</li>
+          <li>Click <strong>Copy signature for Outlook</strong>.</li>
+          <li>In Outlook, open <strong>Settings</strong> (gear icon) &rsaquo; <strong>Accounts</strong> &rsaquo; <strong>Signatures</strong>.</li>
+          <li>Click <strong>New signature</strong>, give it a name, click into the editing box and paste (<code>Ctrl+V</code>, or <code>Cmd+V</code> on a Mac).</li>
+          <li>Set it as the default for <strong>New messages</strong> and for <strong>Replies/forwards</strong>, then <strong>Save</strong>.</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>Classic Outlook for Windows</summary>
+        <ol>
+          <li>Click <strong>Copy signature for Outlook</strong>.</li>
+          <li>Go to <strong>File</strong> &rsaquo; <strong>Options</strong> &rsaquo; <strong>Mail</strong> &rsaquo; <strong>Signatures</strong>.</li>
+          <li>Click <strong>New</strong>, give it a name, and paste into the editing box.</li>
+          <li>Under <strong>Choose default signature</strong>, set it for New messages and Replies/forwards. Click <strong>OK</strong>.</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>Classic Outlook for Mac</summary>
+        <ol>
+          <li>Click <strong>Copy signature for Outlook</strong>.</li>
+          <li>Go to <strong>Outlook</strong> &rsaquo; <strong>Settings</strong> &rsaquo; <strong>Signatures</strong>.</li>
+          <li>Click <strong>+</strong>, give it a name, and paste into the editing box.</li>
+          <li>Set it as the default for new messages and replies, then close the window.</li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>Outlook on a phone (iPhone, iPad, Android)</summary>
+        <ol>
+          <li>Click <strong>Copy phone version</strong> in the box above.</li>
+          <li>In the Outlook app, tap your profile picture or initials, top-left.</li>
+          <li>Tap the gear icon for <strong>Settings</strong>, then tap <strong>Signature</strong>.</li>
+          <li>Delete the text already there (usually "Get Outlook for iOS"), paste yours in, then go back to save.</li>
+        </ol>
+        <p>Do not paste the desktop signature into a phone. It will show unreadable code.</p>
+      </details>
+
+      <details>
+        <summary>Booking links</summary>
+        <p>The booking link is <strong>off by default</strong>. Not everyone wants one, so it
+           is opt-in.</p>
+        <ul>
+          <li>Paste a Calendly, Microsoft Bookings, Cal.com or similar link into the
+              <strong>Booking link</strong> field and it appears as a button-style link.</li>
+          <li>Change the wording with <strong>Booking link wording</strong> — "BOOK A MEETING",
+              "SCHEDULE A CALL", whatever fits.</li>
+          <li>Do not add one on someone else’s behalf without asking. Whether to publish
+              bookable time is the individual’s call.</li>
+        </ul>
+        <p>To remove a link later: open the signature editor, select the words, and delete them.</p>
+      </details>
+
+      <details>
+        <summary>If the logo and icons do not appear</summary>
+        <ul>
+          <li>Most often Outlook is waiting for permission to show pictures. Click
+              <strong>Download pictures</strong> or <strong>Show images</strong> at the top of the message.</li>
+          <li>Always send yourself a test email and open it on both computer and phone before rolling a signature out.</li>
+          <li>If images are missing for everyone at once, whatever hosts them is unreachable. A logo must sit at a public HTTPS URL that stays put — if it moves or is deleted, every signature already sent loses it.</li>
+          <li>If you opened this page from a file on your computer rather than the web, the
+              preview images will not load, but the copied signature is still correct.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<footer>
+  Everything runs in your browser. Nothing you type is uploaded, stored or logged —
+  there is no backend and no analytics. The contact icons are served from this site;
+  your logo is served from wherever you host it.
+</footer>
+
+<script>
+/* ==================================================================
+   RENDERING ENGINE — inlined verbatim from src/template.js by
+   scripts/build-burn-a-sig.mjs. Do not edit it here: edit
+   src/template.js and rebuild, or the two will drift apart.
+   ================================================================== */
+/*{{ENGINE}}*/
+
+/* ==================================================================
+   PAGE WIRING
+   ================================================================== */
+
+/* Public HTTPS folder holding the five contact icons. A signature is read
+   inside someone else's mail client, so every image must be an absolute HTTPS
+   URL — a relative path would resolve against their mail host and break. */
+var ASSET_BASE = "{{ASSET_BASE}}";
+
+/* Optional starting values, injected at build time. A deployment that always
+   builds for one organisation can pre-fill them; the public build ships them
+   empty so nothing is assumed about who is using it. */
+var DEFAULTS = {{DEFAULTS}};
+
+var SWATCHES = ["c-name","c-title","c-text","c-link","c-accent","c-divider"];
+var FIELDS = ["f-preset","f-iconstyle"].concat(SWATCHES).concat(["f-company","f-website","f-logo","f-name","f-title","f-email","f-direct","f-label","f-office","f-fax","f-booking","f-bookinglabel"]);
+var $ = function(id){ return document.getElementById(id); };
+
+/* Organisation-level values come from the form too, so one page serves any
+   organisation. renderSignature() reads them from `shared`; office and fax are
+   passed on the person instead, because here they are per-signature values. */
+/* Each preset is a full palette. The six swatches are the ones worth exposing;
+   the rest of the palette follows from them so a theme stays coherent. */
+var PRESETS = {
+  olive: { name:"#3f4a1f", title:"#4c5a26", text:"#3a3a34", link:"#6b7c3a", accent:"#e0a12e", divider:"#e6e1d4" },
+  slate: { name:"#2f3e46", title:"#52796f", text:"#3a3a34", link:"#52796f", accent:"#84a98c", divider:"#dfe4e2" },
+  navy:  { name:"#1b2a4a", title:"#2f4a7c", text:"#33383f", link:"#2f6fb5", accent:"#c98a2e", divider:"#dde2ea" },
+  plum:  { name:"#4a1f3f", title:"#6d2f5c", text:"#3a343a", link:"#8c3f73", accent:"#d1849f", divider:"#ece1e8" },
+  mono:  { name:"#1a1a1a", title:"#4a4a4a", text:"#3a3a3a", link:"#1a1a1a", accent:"#8a8a8a", divider:"#dcdcdc" }
+};
+
+/* The six swatches expand into the nine colours the template actually uses. */
+function readColors(){
+  var v = function(id){ return $(id).value; };
+  return {
+    name: v("c-name"), title: v("c-title"), text: v("c-text"),
+    webLink: v("c-link"), emailLink: v("c-link"), bookLink: v("c-link"),
+    bookAccent: v("c-accent"), divider: v("c-divider"),
+    label: "#b0aea3"
+  };
+}
+
+function applyPreset(key){
+  var p = PRESETS[key] || PRESETS.olive;
+  $("c-name").value = p.name; $("c-title").value = p.title; $("c-text").value = p.text;
+  $("c-link").value = p.link; $("c-accent").value = p.accent; $("c-divider").value = p.divider;
+}
+
+function readShared(){
+  var site = $("f-website").value.trim();
+  return {
+    company:    $("f-company").value.trim(),
+    website:    site.replace(/^https?:\/\//i, "").replace(/\/+$/, ""),
+    websiteUrl: site,
+    logoFile:   $("f-logo").value.trim(),
+    office:     "",
+    officeTel:  "",
+    fax:        ""
+  };
+}
+
+function readForm(){
+  return {
+    name:         $("f-name").value.trim(),
+    title:        $("f-title").value.trim(),
+    email:        $("f-email").value.trim(),
+    direct:       $("f-direct").value.trim(),
+    directLabel:  $("f-label").value,
+    office:       $("f-office").value.trim(),
+    fax:          $("f-fax").value.trim(),
+    bookingUrl:   $("f-booking").value.trim(),
+    bookingLabel: $("f-bookinglabel").value.trim()
+  };
+}
+
+/* Validation is advisory, never blocking: it explains what will happen rather
+   than refusing to build. A number that isn't dialable still renders — as plain
+   text with no link — which is what toTel() already does. */
+function setError(inputId, errId, bad){
+  var input = $(inputId), err = $(errId);
+  if(!err) return;
+  err.hidden = !bad;
+  if(input) input.setAttribute("aria-invalid", bad ? "true" : "false");
+}
+function looksLikeEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+function looksDialable(v){ return toTel(v) !== ""; }
+
+function validate(p){
+  setError("f-name",    "e-name",    p.name === "");
+  setError("f-email",   "e-email",   p.email !== "" && !looksLikeEmail(p.email));
+  setError("f-direct",  "e-direct",  p.direct !== "" && !looksDialable(p.direct));
+  setError("f-office",  "e-office",  p.office !== "" && !looksDialable(p.office));
+  setError("f-booking", "e-booking", p.bookingUrl !== "" && !/^https:\/\//i.test(p.bookingUrl));
+  var site = $("f-website").value.trim();
+  setError("f-website", "e-website", site !== "" && !/^https?:\/\//i.test(site));
+  var logo = $("f-logo").value.trim();
+  setError("f-logo", "e-logo", logo !== "" && !/^https:\/\//i.test(logo));
+}
+
+var lastHtml = "", lastText = "";
+
+function refresh(){
+  var p = readForm();
+  validate(p);
+  var shared = readShared();
+  lastHtml = renderSignature(p, shared, {
+    assetBase: ASSET_BASE,
+    colors: readColors(),
+    iconStyle: $("f-iconstyle").value
+  });
+  lastText = renderPlainText(p, shared);
+  $("sigPreview").innerHTML = lastHtml;
+  $("plainOut").value = lastText;
+}
+
+FIELDS.forEach(function(id){
+  var el = $(id);
+  el.addEventListener("input", refresh);
+  el.addEventListener("change", refresh);
+});
+
+$("f-preset").addEventListener("change", function(){
+  applyPreset($("f-preset").value);
+  refresh();
+});
+
+function flash(el, msg){
+  el.textContent = msg;
+  clearTimeout(el._t);
+  el._t = setTimeout(function(){ el.textContent = ""; }, 4000);
+}
+
+/* Slug used for downloaded filenames: "Melody Lee, MA" -> "melody-lee" */
+function slugify(name){
+  return String(name).replace(/,.*$/, "").trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "signature";
+}
+
+function download(filename, text, mime){
+  var blob = new Blob([text], { type: mime + ";charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+$("btn-copy").addEventListener("click", function(){
+  var status = $("status-copy");
+  /* Selecting the rendered preview and copying keeps the rich formatting that
+     Outlook needs. Used as the fallback wherever the async clipboard API is
+     unavailable — notably when this page is opened from a file:// path. */
+  function fallback(){
+    var sel = window.getSelection(), range = document.createRange();
+    range.selectNodeContents($("sigPreview"));
+    sel.removeAllRanges(); sel.addRange(range);
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+    sel.removeAllRanges();
+    flash(status, ok ? "Copied. Now paste into Outlook."
+                     : "Copy failed — select the preview above and press Ctrl+C / Cmd+C.");
+  }
+  if(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write){
+    navigator.clipboard.write([ new ClipboardItem({
+      "text/html":  new Blob([lastHtml], {type:"text/html"}),
+      "text/plain": new Blob([lastText], {type:"text/plain"})
+    })]).then(function(){
+      flash(status, "Copied. Now paste into Outlook.");
+    })["catch"](fallback);
+  } else {
+    fallback();
+  }
+});
+
+$("btn-copy-plain").addEventListener("click", function(){
+  var status = $("status-plain"), ta = $("plainOut");
+  function fallback(){
+    ta.select(); ta.setSelectionRange(0, 99999);
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){ ok = false; }
+    flash(status, ok ? "Copied." : "Copy failed — press Ctrl+C / Cmd+C.");
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value)
+      .then(function(){ flash(status, "Copied."); })["catch"](fallback);
+  } else {
+    fallback();
+  }
+});
+
+$("btn-dl-html").addEventListener("click", function(){
+  var slug = slugify(readForm().name);
+  download(slug + ".html", lastHtml + "\n", "text/html");
+  flash($("status-copy"), "Downloaded " + slug + ".html");
+});
+
+$("btn-dl-txt").addEventListener("click", function(){
+  var slug = slugify(readForm().name);
+  download(slug + ".txt", lastText, "text/plain");
+  flash($("status-plain"), "Downloaded " + slug + ".txt");
+});
+
+$("btn-reset").addEventListener("click", function(){
+  FIELDS.forEach(function(id){
+    var el = $(id);
+    if(el.tagName === "SELECT"){ el.selectedIndex = 0; return; }
+    if(SWATCHES.indexOf(id) !== -1) return;   // handled by applyPreset below
+    el.value = id === "f-bookinglabel" ? "BOOK A MEETING" : "";
+  });
+  $("f-preset").value = "olive";
+  $("f-iconstyle").value = "image";
+  applyPreset("olive");
+  refresh();
+  $("f-name").focus();
+});
+
+/* Apply any build-time defaults before the first render, so a pre-configured
+   deployment opens ready to use and the public one opens blank. */
+applyPreset("olive");
+
+Object.keys(DEFAULTS).forEach(function(id){
+  var el = $(id);
+  if(el) el.value = DEFAULTS[id];
+});
+
+refresh();
+</script>
+</body>
+</html>

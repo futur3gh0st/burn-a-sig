@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+
+# Deployment-specific denylist for check:sig — the names and client terms that
+# must never reach the published page. Kept out of the repository on purpose:
+# committing it would publish the very names it exists to keep out.
+check.config.json
