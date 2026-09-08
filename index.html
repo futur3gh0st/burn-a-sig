@@ -44,6 +44,10 @@
   textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
   input[aria-invalid="true"]{border-color:var(--danger);}
   .err{display:block;color:var(--danger);font-size:12px;font-weight:600;margin-top:4px;}
+  .swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;margin:0 0 6px;}
+  .swatches label{margin:0;font-size:11px;font-weight:600;color:var(--muted);text-align:center;}
+  .swatches input[type=color]{display:block;width:100%;height:34px;margin-top:4px;padding:2px;
+    border:1px solid var(--border);border-radius:6px;background:var(--field);cursor:pointer;min-height:34px;}
   .row{display:grid;grid-template-columns:1fr 130px;gap:10px;align-items:end;}
   @media (max-width:420px){.row{grid-template-columns:1fr}}
   .btn{display:inline-block;background:var(--green2);color:#fff;border:0;border-radius:6px;
@@ -106,6 +110,38 @@
         cannot show an image from your computer. Blank means no logo.</span>
       <input type="url" id="f-logo" placeholder="https://email.com/logo.png" />
       <span class="err" id="e-logo" hidden>A logo must be a public https:// image URL.</span>
+    </label>
+
+    <h2 style="margin-top:26px">Appearance</h2>
+
+    <label for="f-preset">Colour theme
+      <span class="hint">Pick one, then adjust any swatch below</span>
+      <select id="f-preset">
+        <option value="olive">Olive &amp; gold</option>
+        <option value="slate">Slate</option>
+        <option value="navy">Navy</option>
+        <option value="plum">Plum</option>
+        <option value="mono">Mono</option>
+      </select>
+    </label>
+
+    <div class="swatches">
+      <label for="c-name">Name<input type="color" id="c-name" /></label>
+      <label for="c-title">Title<input type="color" id="c-title" /></label>
+      <label for="c-text">Text<input type="color" id="c-text" /></label>
+      <label for="c-link">Links<input type="color" id="c-link" /></label>
+      <label for="c-accent">Accent<input type="color" id="c-accent" /></label>
+      <label for="c-divider">Divider<input type="color" id="c-divider" /></label>
+    </div>
+
+    <label for="f-iconstyle" style="margin-top:14px">Contact icons
+      <span class="hint">Emoji need no hosting and never break. Images are sharper,
+        but only show once the reader allows pictures.</span>
+      <select id="f-iconstyle">
+        <option value="image">Gold images</option>
+        <option value="emoji">Emoji 📱 ☎️ 🌐</option>
+        <option value="none">No icons</option>
+      </select>
     </label>
 
     <h2 style="margin-top:26px">Their details</h2>
@@ -305,7 +341,7 @@
 // The <img> src values are built from an assetBase so the same template serves
 // both the local browser preview (relative path) and production (HTTPS host).
 
-const COLORS = {
+const DEFAULT_COLORS = {
   name: "#3f4a1f",
   title: "#4c5a26",
   text: "#3a3a34",
@@ -318,6 +354,20 @@ const COLORS = {
 };
 
 const FONT = "Arial, Helvetica, sans-serif";
+
+/**
+ * Text stand-ins for the five contact icons, for signatures that should carry
+ * no hosted images at all. Emoji are just characters, so they need no hosting
+ * and cannot break later the way a linked PNG can — the trade is that each mail
+ * client draws them in its own style.
+ */
+const EMOJI_ICONS = {
+  "icon-mobile.png": "\u{1F4F1}",
+  "icon-phone.png": "\u{260E}\u{FE0F}",
+  "icon-fax.png": "\u{1F4E0}",
+  "icon-globe.png": "\u{1F310}",
+  "icon-email.png": "\u{2709}\u{FE0F}",
+};
 
 /** Escape text destined for HTML element content / double-quoted attributes. */
 function esc(value) {
@@ -339,15 +389,32 @@ function assetUrl(base, file) {
   return `${String(base).replace(/\/+$/, "")}/${file}`;
 }
 
-/** One contact row: gold icon + value cell. `value` is pre-built HTML. */
-function contactRow(assetBase, icon, valueHtml, isLast) {
+/**
+ * One contact row: icon cell + value cell. `valueHtml` is pre-built HTML.
+ *
+ * `iconStyle` picks how the left cell is drawn:
+ *   "image" — the hosted PNG set (default; what the roster signatures use)
+ *   "emoji" — a text character, so the signature carries no images at all
+ *   "none"  — no icon cell, the values sit flush left
+ */
+function contactRow(assetBase, icon, valueHtml, isLast, c, iconStyle) {
   const pad = isLast ? "0" : "10px";
-  return (
-    `<tr>` +
+  let iconCell = "";
+  if (iconStyle === "emoji") {
+    iconCell =
+      `<td width="15" valign="middle" style="padding:0 10px ${pad} 0;font-family:${FONT};font-size:13px;line-height:1;">` +
+        (EMOJI_ICONS[icon] ?? "") +
+      `</td>`;
+  } else if (iconStyle !== "none") {
+    iconCell =
       `<td width="15" valign="middle" style="padding:0 10px ${pad} 0;">` +
         `<img src="${esc(assetUrl(assetBase, icon))}" alt="" width="15" height="15" style="display:block;border:0;" />` +
-      `</td>` +
-      `<td valign="middle" style="padding-bottom:${pad};font-family:${FONT};font-size:13px;color:${COLORS.text};white-space:nowrap;">` +
+      `</td>`;
+  }
+  return (
+    `<tr>` +
+      iconCell +
+      `<td valign="middle" style="padding-bottom:${pad};font-family:${FONT};font-size:13px;color:${c.text};white-space:nowrap;">` +
         valueHtml +
       `</td>` +
     `</tr>`
@@ -370,17 +437,17 @@ function toTel(display) {
 }
 
 /** A phone number, linked when we have a dialable form for it. */
-function phoneHtml(display, tel) {
+function phoneHtml(display, tel, c) {
   const dial = tel || toTel(display);
   return dial
-    ? `<a href="tel:${esc(dial)}" style="color:${COLORS.text};text-decoration:none;">${esc(display)}</a>`
+    ? `<a href="tel:${esc(dial)}" style="color:${c.text};text-decoration:none;">${esc(display)}</a>`
     : esc(display);
 }
 
 /** A trailing gray label (DIRECT / MOBILE / OFFICE / FAX) after a phone number. */
-function labelSpan(label) {
+function labelSpan(label, c) {
   return (
-    `<span style="font-size:11px;color:${COLORS.label};letter-spacing:0.5px;` +
+    `<span style="font-size:11px;color:${c.label};letter-spacing:0.5px;` +
     `margin-left:8px;">${esc(label)}</span>`
   );
 }
@@ -394,6 +461,10 @@ function labelSpan(label) {
  */
 function renderSignature(person, shared, opts = {}) {
   const assetBase = opts.assetBase ?? ".";
+  // Any subset of the palette may be overridden; anything not supplied keeps
+  // its default, so a caller can change one colour without restating the rest.
+  const c = { ...DEFAULT_COLORS, ...(opts.colors ?? {}) };
+  const iconStyle = opts.iconStyle ?? "image";
 
   // ---- Contact rows (right column) ----
   const rows = [];
@@ -404,8 +475,10 @@ function renderSignature(person, shared, opts = {}) {
       contactRow(
         assetBase,
         "icon-mobile.png",
-        phoneHtml(person.direct, person.directTel) + labelSpan(person.directLabel || "MOBILE"),
+        phoneHtml(person.direct, person.directTel, c) + labelSpan(person.directLabel || "MOBILE", c),
         false,
+        c,
+        iconStyle,
       ),
     );
   }
@@ -423,14 +496,14 @@ function renderSignature(person, shared, opts = {}) {
 
   if (office) {
     rows.push(
-      contactRow(assetBase, "icon-phone.png", phoneHtml(office, officeTel) + labelSpan("OFFICE"), false),
+      contactRow(assetBase, "icon-phone.png", phoneHtml(office, officeTel, c) + labelSpan("OFFICE", c), false, c, iconStyle),
     );
   }
 
   // Fax line (no link — fax numbers are not dialable).
   const fax = person.fax ?? shared.fax;
   if (fax) {
-    rows.push(contactRow(assetBase, "icon-fax.png", esc(fax) + labelSpan("FAX"), false));
+    rows.push(contactRow(assetBase, "icon-fax.png", esc(fax) + labelSpan("FAX", c), false, c, iconStyle));
   }
 
   // Website line. Optional like the rest — a signature with no website simply
@@ -442,8 +515,10 @@ function renderSignature(person, shared, opts = {}) {
       contactRow(
         assetBase,
         "icon-globe.png",
-        `<a href="${esc(href)}" style="color:${COLORS.webLink};text-decoration:none;">${esc(shown)}</a>`,
+        `<a href="${esc(href)}" style="color:${c.webLink};text-decoration:none;">${esc(shown)}</a>`,
         false,
+        c,
+        iconStyle,
       ),
     );
   }
@@ -454,8 +529,10 @@ function renderSignature(person, shared, opts = {}) {
       contactRow(
         assetBase,
         "icon-email.png",
-        `<a href="mailto:${esc(person.email)}" style="color:${COLORS.emailLink};text-decoration:none;">${esc(person.email)}</a>`,
+        `<a href="mailto:${esc(person.email)}" style="color:${c.emailLink};text-decoration:none;">${esc(person.email)}</a>`,
         true,
+        c,
+        iconStyle,
       ),
     );
   } else if (rows.length) {
@@ -471,8 +548,8 @@ function renderSignature(person, shared, opts = {}) {
         `style="border-collapse:collapse;margin-top:24px;">` +
         `<tr><td valign="middle" style="padding:0;">` +
           `<a href="${esc(person.bookingUrl)}" style="font-family:${FONT};font-size:12px;` +
-          `font-weight:bold;letter-spacing:2px;color:${COLORS.bookLink};text-decoration:none;` +
-          `border-bottom:2px solid ${COLORS.bookAccent};padding-bottom:3px;white-space:nowrap;">` +
+          `font-weight:bold;letter-spacing:2px;color:${c.bookLink};text-decoration:none;` +
+          `border-bottom:2px solid ${c.bookAccent};padding-bottom:3px;white-space:nowrap;">` +
           `${esc(person.bookingLabel || "BOOK A MEETING")}&nbsp;&rarr;</a>` +
         `</td></tr>` +
       `</table>`
@@ -492,16 +569,16 @@ function renderSignature(person, shared, opts = {}) {
       `<tr>` +
         // Left column: name, title, logo.
         `<td width="216" valign="top" style="width:216px;padding:0 32px 0 0;font-family:${FONT};">` +
-          `<div style="font-family:${FONT};font-size:24px;line-height:1.1;font-weight:bold;color:${COLORS.name};">${esc(person.name)}</div>` +
+          `<div style="font-family:${FONT};font-size:24px;line-height:1.1;font-weight:bold;color:${c.name};">${esc(person.name)}</div>` +
           // A blank title drops the line rather than printing an empty band.
           // Every roster person has one; the builder allows leaving it out.
           (person.title
-            ? `<div style="font-family:${FONT};font-size:13px;font-weight:bold;color:${COLORS.title};text-transform:uppercase;letter-spacing:1.5px;padding-top:8px;">${esc(person.title)}</div>`
+            ? `<div style="font-family:${FONT};font-size:13px;font-weight:bold;color:${c.title};text-transform:uppercase;letter-spacing:1.5px;padding-top:8px;">${esc(person.title)}</div>`
             : "") +
           logoHtml +
         `</td>` +
         // Divider.
-        `<td width="1" bgcolor="${COLORS.divider}" style="width:1px;background:${COLORS.divider};font-size:1px;line-height:1px;">&#160;</td>` +
+        `<td width="1" bgcolor="${c.divider}" style="width:1px;background:${c.divider};font-size:1px;line-height:1px;">&#160;</td>` +
         // Right column: contact rows + booking link.
         `<td valign="top" style="padding:2px 0 0 32px;font-family:${FONT};">` +
           `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;">${rows.join("")}</table>` +
@@ -582,12 +659,40 @@ var ASSET_BASE = "https://futur3gh0st.github.io/burn-a-sig/assets";
    empty so nothing is assumed about who is using it. */
 var DEFAULTS = {};
 
-var FIELDS = ["f-company","f-website","f-logo","f-name","f-title","f-email","f-direct","f-label","f-office","f-fax","f-booking","f-bookinglabel"];
+var SWATCHES = ["c-name","c-title","c-text","c-link","c-accent","c-divider"];
+var FIELDS = ["f-preset","f-iconstyle"].concat(SWATCHES).concat(["f-company","f-website","f-logo","f-name","f-title","f-email","f-direct","f-label","f-office","f-fax","f-booking","f-bookinglabel"]);
 var $ = function(id){ return document.getElementById(id); };
 
 /* Organisation-level values come from the form too, so one page serves any
    organisation. renderSignature() reads them from `shared`; office and fax are
    passed on the person instead, because here they are per-signature values. */
+/* Each preset is a full palette. The six swatches are the ones worth exposing;
+   the rest of the palette follows from them so a theme stays coherent. */
+var PRESETS = {
+  olive: { name:"#3f4a1f", title:"#4c5a26", text:"#3a3a34", link:"#6b7c3a", accent:"#e0a12e", divider:"#e6e1d4" },
+  slate: { name:"#2f3e46", title:"#52796f", text:"#3a3a34", link:"#52796f", accent:"#84a98c", divider:"#dfe4e2" },
+  navy:  { name:"#1b2a4a", title:"#2f4a7c", text:"#33383f", link:"#2f6fb5", accent:"#c98a2e", divider:"#dde2ea" },
+  plum:  { name:"#4a1f3f", title:"#6d2f5c", text:"#3a343a", link:"#8c3f73", accent:"#d1849f", divider:"#ece1e8" },
+  mono:  { name:"#1a1a1a", title:"#4a4a4a", text:"#3a3a3a", link:"#1a1a1a", accent:"#8a8a8a", divider:"#dcdcdc" }
+};
+
+/* The six swatches expand into the nine colours the template actually uses. */
+function readColors(){
+  var v = function(id){ return $(id).value; };
+  return {
+    name: v("c-name"), title: v("c-title"), text: v("c-text"),
+    webLink: v("c-link"), emailLink: v("c-link"), bookLink: v("c-link"),
+    bookAccent: v("c-accent"), divider: v("c-divider"),
+    label: "#b0aea3"
+  };
+}
+
+function applyPreset(key){
+  var p = PRESETS[key] || PRESETS.olive;
+  $("c-name").value = p.name; $("c-title").value = p.title; $("c-text").value = p.text;
+  $("c-link").value = p.link; $("c-accent").value = p.accent; $("c-divider").value = p.divider;
+}
+
 function readShared(){
   var site = $("f-website").value.trim();
   return {
@@ -645,7 +750,11 @@ function refresh(){
   var p = readForm();
   validate(p);
   var shared = readShared();
-  lastHtml = renderSignature(p, shared, { assetBase: ASSET_BASE });
+  lastHtml = renderSignature(p, shared, {
+    assetBase: ASSET_BASE,
+    colors: readColors(),
+    iconStyle: $("f-iconstyle").value
+  });
   lastText = renderPlainText(p, shared);
   $("sigPreview").innerHTML = lastHtml;
   $("plainOut").value = lastText;
@@ -655,6 +764,11 @@ FIELDS.forEach(function(id){
   var el = $(id);
   el.addEventListener("input", refresh);
   el.addEventListener("change", refresh);
+});
+
+$("f-preset").addEventListener("change", function(){
+  applyPreset($("f-preset").value);
+  refresh();
 });
 
 function flash(el, msg){
@@ -737,14 +851,20 @@ $("btn-reset").addEventListener("click", function(){
   FIELDS.forEach(function(id){
     var el = $(id);
     if(el.tagName === "SELECT"){ el.selectedIndex = 0; return; }
+    if(SWATCHES.indexOf(id) !== -1) return;   // handled by applyPreset below
     el.value = id === "f-bookinglabel" ? "BOOK A MEETING" : "";
   });
+  $("f-preset").value = "olive";
+  $("f-iconstyle").value = "image";
+  applyPreset("olive");
   refresh();
   $("f-name").focus();
 });
 
 /* Apply any build-time defaults before the first render, so a pre-configured
    deployment opens ready to use and the public one opens blank. */
+applyPreset("olive");
+
 Object.keys(DEFAULTS).forEach(function(id){
   var el = $(id);
   if(el) el.value = DEFAULTS[id];
